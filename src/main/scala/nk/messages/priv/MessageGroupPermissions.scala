@@ -4,7 +4,7 @@ import cats.effect.IO
 import nk.messages.priv.Groups.MessageGroup
 import nk.messages.priv.SendPrivateMessage.SendingUser
 
-case class Permission()
+class Permission()
 
 case class Allowed() extends Permission()
 

@@ -15,4 +15,7 @@ trait PrivateMessageGroups {
   def find(messageGroupId: UUID): IO[Option[MessageGroup]]
 
   def create(users: Seq[UUID]): IO[MessageGroup]
+
+  def findForUsers(users: Seq[UUID]): IO[Option[MessageGroup]]
+
 }

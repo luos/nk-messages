@@ -2,6 +2,7 @@ package nk.messages.priv
 
 import java.util.UUID
 
+import cats.implicits._
 import cats.effect.IO
 import nk.messages.Escaper
 import nk.messages.priv.Groups.MessageGroup
@@ -30,12 +31,18 @@ class SendPrivateMessage(privateMessageGroups: PrivateMessageGroups,
   def execute(sendingUser: SendingUser,
               messageTarget: Either[TargetMessageGroup, TargetUser],
               message: NewMessage): IO[Either[ErrorResult, SuccessResult]] = {
-    val targetGroupIo = messageTarget match {
+    val targetGroupIo: IO[Option[MessageGroup]] = messageTarget match {
       case Left(group) => {
         privateMessageGroups.find(group.id)
       }
       case Right(user) => {
-        privateMessageGroups.create(Seq(user.userId, sendingUser.userId)).map(g => Some(g))
+        val users = Seq(user.userId, sendingUser.userId)
+        privateMessageGroups.findForUsers(users).flatMap({
+          case Some(existingGroup) => IO.pure(Some(existingGroup))
+          case None => {
+            privateMessageGroups.create(users).map(g => g.some)
+          }
+        })
       }
     }
     targetGroupIo.map({
