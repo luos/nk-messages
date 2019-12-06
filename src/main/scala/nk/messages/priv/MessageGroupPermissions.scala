@@ -4,18 +4,24 @@ import cats.effect.IO
 import nk.messages.priv.Groups.MessageGroup
 import nk.messages.priv.SendPrivateMessage.SendingUser
 
-class Permission()
 
-case class Allowed() extends Permission()
+object MessageGroupPermissions {
 
-case class Blocked() extends Permission()
+  class Permission()
 
-case class NotParticipant() extends Permission()
+  case class Allowed() extends Permission()
+
+  case class Blocked() extends Permission()
+
+  case class NotParticipant() extends Permission()
+
+}
 
 trait MessageGroupPermissions {
-  def canPostTo(sendingUser: SendingUser, messageGroup: MessageGroup): IO[Permission] = {
-    null
-  }
+
+  import MessageGroupPermissions._
+
+  def canPostTo(sendingUser: SendingUser, messageGroup: MessageGroup): IO[Permission]
 
   def canRead(sendingUser: SendingUser, messageGroup: MessageGroup): IO[Permission] = {
     canPostTo(sendingUser, messageGroup)

@@ -26,7 +26,8 @@ object SendPrivateMessage {
 }
 
 class SendPrivateMessage(privateMessageGroups: PrivateMessageGroups,
-                         privateMessageStore: PrivateMessageStore) {
+                         privateMessageStore: PrivateMessageStore,
+                         messageGroupPermissions: MessageGroupPermissions) {
 
   def execute(sendingUser: SendingUser,
               messageTarget: Either[TargetMessageGroup, TargetUser],
@@ -45,20 +46,34 @@ class SendPrivateMessage(privateMessageGroups: PrivateMessageGroups,
         })
       }
     }
-    targetGroupIo.map({
+    targetGroupIo.flatMap({
       case None =>
-        Left(ErrorResult(
+        IO.pure(Left(ErrorResult(
           messages = Seq(
             "Private message conversation does not exist."
           )
-        ))
+        )))
       case Some(g) => {
-        val messageContent = Escaper.removeHtml(message.message)
-        privateMessageStore.insert(g, NewStoredMessage(sendingUser.userId, messageContent.text))
-        Right(SuccessResult(
-          success = true,
-          messageGroup = g
-        ))
+        messageGroupPermissions.canPostTo(sendingUser, g).map(
+          {
+            case MessageGroupPermissions.Allowed() => {
+              val messageContent = Escaper.removeHtml(message.message)
+              privateMessageStore.insert(g, NewStoredMessage(sendingUser.userId, messageContent.text))
+              Right(SuccessResult(
+                success = true,
+                messageGroup = g
+              ))
+            }
+            case _ => {
+              Left(ErrorResult(
+                messages = Seq(
+                  "You have no access to post to this group."
+                )
+              ))
+            }
+          }
+        )
+
       }
     })
 
