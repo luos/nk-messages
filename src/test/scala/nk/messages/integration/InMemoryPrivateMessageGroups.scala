@@ -11,6 +11,7 @@ import scala.collection.mutable
 
 class InMemoryPrivateMessageGroups extends PrivateMessageGroups {
 
+
   val groups = new ArrayBuffer[Groups.MessageGroup]()
 
 
@@ -35,6 +36,9 @@ class InMemoryPrivateMessageGroups extends PrivateMessageGroups {
       groups.filter(_.users.contains(user)).toList
     )
   }
+
+
+  import nk.messages.MutableListExtensions._
 
   override def setLastMessage(messageGroup: Groups.MessageGroup, time: Instant) = {
     groups.filterInPlace(g => g != messageGroup)

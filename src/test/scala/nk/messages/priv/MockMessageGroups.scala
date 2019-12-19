@@ -41,6 +41,9 @@ class MockMessageGroups extends PrivateMessageGroups {
     IO.pure(groups.filter(_.users.contains(user)).toList)
   }
 
+
+  import nk.messages.MutableListExtensions._
+
   override def setLastMessage(messageGroup: MessageGroup, time: Instant) = {
     groups.filterInPlace(g => g != messageGroup)
     val g = messageGroup.copy(

@@ -23,11 +23,12 @@ object ReadConversation {
 
   case class NoPermission() extends Response
 
-  case class Messages(
-                       messages: Seq[Message],
-                       currentPage: Int,
-                       totalPages: Int
-                     ) extends Response
+  case class Messages(messages: Seq[Message],
+                      currentPage: Int,
+                      totalPages: Int,
+                      totalMessages: Int) extends Response {
+
+  }
 
   val PAGE_SIZE = 25
 
@@ -47,11 +48,11 @@ class ReadConversation(privateMessageGroups: PrivateMessageGroups,
             privateMessageStore.getMessagesForGroup(g.id, None, ReadConversation.PAGE_SIZE).map(
               ms => {
                 val page = (ms.count.toFloat / ReadConversation.PAGE_SIZE.toFloat).ceil.toInt
-                Messages(ms.messages, page, page)
+                Messages(ms.messages, page, page, ms.count)
               }
             )
           }
-          case Blocked() =>
+          case _ =>
             IO.pure(NoPermission())
         })
       }

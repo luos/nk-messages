@@ -42,11 +42,9 @@ class ReadConversationTest extends FunSuite {
       groupId
     ).unsafeRunSync()
 
-    assert(result == Messages(
-      Seq(
-        Message("this is a message", userId = userId, createdAt = createdAt)
-      ), 1, 1
-    ))
+    assert(result == Messages(Seq(
+            Message("this is a message", userId = userId, createdAt = createdAt)
+          ), 1, 1, 1))
   }
 
   test("given a conversation id, returns messages from message store if multiple batches are available") {
@@ -74,6 +72,7 @@ class ReadConversationTest extends FunSuite {
 
     assert(result.currentPage == 4)
     assert(result.totalPages == 4)
+    assert(result.totalMessages == 100)
   }
 
   test("given a conversation id, reading a conversation checks for access") {
