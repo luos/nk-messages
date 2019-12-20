@@ -7,6 +7,7 @@ import nk.messages.CurrentUserId
 import nk.messages.priv.Groups.MessageGroup
 import nk.messages.priv.PrivateMessageStore.{Message, NewStoredMessage}
 import nk.messages.priv.ReadConversation.{GroupNotFound, Messages, NoPermission, Request, Response}
+import nk.messages.priv.permissions.MessageGroupPermissions
 import org.scalatest.FunSuite
 
 class ReadConversationTest extends FunSuite {

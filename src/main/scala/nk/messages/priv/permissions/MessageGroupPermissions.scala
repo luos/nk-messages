@@ -1,11 +1,12 @@
-package nk.messages.priv
+package nk.messages.priv.permissions
 
 import java.util.UUID
 
 import cats.effect.IO
-import nk.messages.priv.Groups.MessageGroup
-import nk.messages.priv.MessageGroupPermissions.{Allowed, Blocked, NotParticipant}
 import nk.messages.CurrentUserId
+import nk.messages.priv.Groups.MessageGroup
+import nk.messages.priv.UserBlockList
+import nk.messages.priv.permissions.MessageGroupPermissions.{Allowed, Blocked, NotParticipant}
 
 
 object MessageGroupPermissions {
@@ -17,6 +18,8 @@ object MessageGroupPermissions {
   case class Blocked() extends Permission()
 
   case class NotParticipant() extends Permission()
+
+  case class BlockedWithReason(reason: String) extends Permission()
 
 }
 

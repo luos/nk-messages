@@ -1,15 +1,7 @@
 package nk.messages
 
-import nk.messages.priv.{
-  GetConversationsForUser,
-  MessageGroupPermissionsImplementation,
-  PrivateMessageGroups,
-  PrivateMessageStore,
-  PrivateUserStorage,
-  ReadConversation,
-  SendPrivateMessage,
-  UserBlockList
-}
+import nk.messages.priv.permissions.MessageGroupPermissionsImplementation
+import nk.messages.priv.{GetConversationsForUser, PrivateMessageGroups, PrivateMessageStore, PrivateUserStorage, ReadConversation, SendPrivateMessage, UserBlockList}
 
 class PrivateMessagesComponent(
                                 privateMessageGroups: PrivateMessageGroups,
@@ -20,14 +12,15 @@ class PrivateMessagesComponent(
 
   private val groupPermissions = new MessageGroupPermissionsImplementation(userBlockList)
 
-  private val _send = new SendPrivateMessage(
+  val privateMessageSender = new SendPrivateMessage(
     privateMessageGroups = privateMessageGroups,
     privateMessageStore = privateMessageStore,
-    messageGroupPermissions = groupPermissions
+    messageGroupPermissions = groupPermissions,
+    privateUserStorage = privateUserStorage
   )
 
   object messages {
-    def send = _send.execute _
+    def send = privateMessageSender.execute _
   }
 
 

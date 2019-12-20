@@ -2,6 +2,8 @@ package nk.messages
 
 import java.time.{Instant, LocalDateTime}
 
+import cats.effect.IO
+
 object TestUtils {
   def assertHappenedNowInstant(date: Instant): Symbol = {
     assertHappenedNowInstant(Some(date))
@@ -15,6 +17,10 @@ object TestUtils {
     } else {
       throw new Exception(s"Failed asserting that date $date is earlier than $d.")
     }
+  }
+
+  implicit class IoResult[T](val io: IO[T]) extends AnyVal {
+    def run = io.unsafeRunSync()
   }
 
 }

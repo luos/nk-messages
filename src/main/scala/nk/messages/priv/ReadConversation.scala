@@ -4,9 +4,10 @@ import java.util.UUID
 
 import cats.effect.IO
 import nk.messages.CurrentUserId
-import nk.messages.priv.MessageGroupPermissions.{Allowed, Blocked}
+import nk.messages.priv.permissions.MessageGroupPermissions.{Allowed, Blocked}
 import nk.messages.priv.PrivateMessageStore.Message
 import nk.messages.priv.ReadConversation.{GroupNotFound, Messages, NoPermission, Request, Response}
+import nk.messages.priv.permissions.MessageGroupPermissions
 
 object ReadConversation {
 

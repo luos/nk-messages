@@ -7,6 +7,7 @@ import nk.messages.priv.Groups.MessageGroup
 import nk.messages.CurrentUserId
 import org.scalatest.FunSuite
 import cats.implicits._
+import nk.messages.priv.permissions.{MessageGroupPermissions, MessageGroupPermissionsImplementation}
 
 class MessageGroupPermissionsImplementationTest extends FunSuite {
 

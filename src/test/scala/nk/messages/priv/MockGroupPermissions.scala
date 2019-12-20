@@ -3,6 +3,7 @@ package nk.messages.priv
 import cats.effect.IO
 import nk.messages.CurrentUserId
 import nk.messages.priv.Groups.MessageGroup
+import nk.messages.priv.permissions.MessageGroupPermissions
 
 import scala.collection.mutable.ListBuffer
 
@@ -27,6 +28,8 @@ class MockGroupPermissions extends MessageGroupPermissions {
 
   override def canPostTo(sendingUser: CurrentUserId,
                          messageGroup: Groups.MessageGroup): IO[MessageGroupPermissions.Permission] = {
+    val tuple = (sendingUser, messageGroup)
+    canPostCalledWith += tuple
     IO.pure(_returning)
   }
 }

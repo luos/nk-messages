@@ -8,10 +8,23 @@ import cats.implicits._
 import cats.effect.IO
 import nk.messages.priv.Groups.MessageGroup
 import nk.messages.priv.SendPrivateMessage.{ErrorResult, NewMessage, SuccessResult, TargetMessageGroup, TargetUserId}
+import nk.messages.priv.permissions.MessageGroupPermissions
 import nk.messages.{CurrentUserId, TestUtils}
-import org.scalatest.FunSuite
+import org.scalactic.source.Position
+import org.scalatest.{BeforeAndAfter, FunSuite}
 
-class SendPrivateMessageTest extends FunSuite {
+class SendPrivateMessageTest
+  extends FunSuite
+    with PrivateMessagesTestHelpers
+    with BeforeAndAfter {
+
+  val sendingUser = createUser()
+  val receivingUser = createUser()
+  var existingUsers: MockPrivateUserStorage = null
+
+  before({
+    existingUsers = new MockPrivateUserStorage(Seq(sendingUser, receivingUser))
+  })
 
   val allowAllPermissions = new MessageGroupPermissions {
     override def canPostTo(sendingUser: CurrentUserId, messageGroup: MessageGroup): IO[MessageGroupPermissions.Permission] = {
@@ -21,16 +34,13 @@ class SendPrivateMessageTest extends FunSuite {
 
   test("sending a message where there was none before") {
     val messages = new MockPrivateMessageStore()
-    val targetGroupId = UUID.randomUUID()
-    val sendingUser = UUID.randomUUID()
-    val receivingUser = UUID.randomUUID()
     val messageGroups = new MockMessageGroups()
-    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions)
+    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions, existingUsers)
 
     val Right(result) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
-      messageTarget = TargetUserId(receivingUser).asRight
+      messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
     assert(result.success)
     assert(messageGroups.groups.head.id == result.messageGroup.id)
@@ -43,13 +53,11 @@ class SendPrivateMessageTest extends FunSuite {
   test("sending a message where there was some before") {
     val messages = new MockPrivateMessageStore()
     val targetGroupId = UUID.randomUUID()
-    val sendingUser = UUID.randomUUID()
-    val receivingUser = UUID.randomUUID()
     val privateMessageSender = new SendPrivateMessage(
       new PrivateMessageGroups {
         override def find(messageGroupId: UUID): IO[Option[Groups.MessageGroup]] = {
           IO.pure(Some(
-            MessageGroup(targetGroupId, Seq(sendingUser, receivingUser), None)
+            MessageGroup(targetGroupId, Seq(sendingUser.userId, receivingUser.userId), None)
           ))
         }
 
@@ -65,10 +73,10 @@ class SendPrivateMessageTest extends FunSuite {
           IO.pure(messageGroup)
         }
       }
-      , messages, allowAllPermissions)
+      , messages, allowAllPermissions, existingUsers)
 
     val Right(result) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
       messageTarget = TargetMessageGroup(targetGroupId).asLeft
     ).unsafeRunSync()
@@ -83,17 +91,19 @@ class SendPrivateMessageTest extends FunSuite {
   test("sending a message containing html") {
     val messages = new MockPrivateMessageStore()
     val targetGroupId = UUID.randomUUID()
-    val sendingUser = UUID.randomUUID()
-    val receivingUser = UUID.randomUUID()
     val messageGroups = new MockMessageGroups().withGroupForTesting(
-      MessageGroup(targetGroupId, Seq(sendingUser, receivingUser), None)
+      MessageGroup(targetGroupId, Seq(sendingUser.userId, receivingUser.userId), None)
     )
 
 
-    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions)
+    val privateMessageSender = new SendPrivateMessage(
+      messageGroups,
+      messages,
+      allowAllPermissions,
+      existingUsers)
 
     val Right(result) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("<script>hello</script><iframe>hello \n"),
       messageTarget = TargetMessageGroup(targetGroupId).asLeft
     ).unsafeRunSync()
@@ -109,12 +119,14 @@ class SendPrivateMessageTest extends FunSuite {
   test("sending a message to a non-existing group") {
     val messages = new MockPrivateMessageStore()
     val targetGroupId = UUID.randomUUID()
-    val sendingUser = UUID.randomUUID()
     val messageGroups = new MockMessageGroups()
-    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions)
+    val privateMessageSender = new SendPrivateMessage(messageGroups,
+      messages,
+      allowAllPermissions,
+      existingUsers)
 
     val Left(result: ErrorResult) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
       messageTarget = TargetMessageGroup(targetGroupId).asLeft
     ).unsafeRunSync()
@@ -127,19 +139,21 @@ class SendPrivateMessageTest extends FunSuite {
 
   test("sending a message to a user which we already have a group with") {
     val messages = new MockPrivateMessageStore()
-    val sendingUser = UUID.randomUUID()
-    val receivingUser = UUID.randomUUID()
-    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, allowAllPermissions)
+    val privateMessageSender = new SendPrivateMessage(
+      new MockMessageGroups(),
+      messages,
+      allowAllPermissions,
+      existingUsers)
 
     val Right(result: SuccessResult) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
-      messageTarget = TargetUserId(receivingUser).asRight
+      messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
     val Right(result2: SuccessResult) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
-      messageTarget = TargetUserId(receivingUser).asRight
+      messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
     assert(result.messageGroup.id == result2.messageGroup.id)
@@ -147,28 +161,25 @@ class SendPrivateMessageTest extends FunSuite {
 
   test("given the user has no permission can not post to group") {
     val messages = new MockPrivateMessageStore()
-    val sendingUser = UUID.randomUUID()
-    val receivingUser = UUID.randomUUID()
     val blockPostPermissions = new MessageGroupPermissions {
       override def canPostTo(sendingUser: CurrentUserId, messageGroup: MessageGroup): IO[MessageGroupPermissions.Permission] = {
         val p = MessageGroupPermissions.Blocked()
         IO.pure(p)
       }
     }
-    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, blockPostPermissions)
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, blockPostPermissions, existingUsers)
 
     val Left(result: ErrorResult) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
-      messageTarget = TargetUserId(receivingUser).asRight
+      messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
-    assert(result.messages.contains("You have no access to post to this group."))
+    assert(result.messages.contains("You have no access to post to this group. (Blocked())"))
   }
 
   test("sending a message to a non existing user") {
     val messages = new MockPrivateMessageStore()
-    val sendingUser = UUID.randomUUID()
     val receivingUser = UUID.randomUUID()
     val blockPostPermissions = new MessageGroupPermissions {
       override def canPostTo(sendingUser: CurrentUserId, messageGroup: MessageGroup): IO[MessageGroupPermissions.Permission] = {
@@ -179,32 +190,53 @@ class SendPrivateMessageTest extends FunSuite {
     val privateMessageSender = new SendPrivateMessage(
       new MockMessageGroups(),
       messages,
-      blockPostPermissions)
+      blockPostPermissions, existingUsers)
+
+    val Left(result: ErrorResult) = privateMessageSender.execute(
+      sendingUser = CurrentUserId(sendingUser.userId),
+      message = NewMessage("hello"),
+      messageTarget = TargetUserId(receivingUser).asRight
+    ).unsafeRunSync()
+
+    assert(result.messages.contains("Recipient user does not exist."))
+  }
+
+  test("sending a message as a non existing user") {
+    val messages = new MockPrivateMessageStore()
+    val sendingUser = UUID.randomUUID()
+    val blockPostPermissions = new MessageGroupPermissions {
+      override def canPostTo(sendingUser: CurrentUserId, messageGroup: MessageGroup): IO[MessageGroupPermissions.Permission] = {
+        val p = MessageGroupPermissions.Blocked()
+        IO.pure(p)
+      }
+    }
+    val privateMessageSender = new SendPrivateMessage(
+      new MockMessageGroups(),
+      messages,
+      blockPostPermissions, existingUsers)
 
     val Left(result: ErrorResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser),
       message = NewMessage("hello"),
-      messageTarget = TargetUserId(receivingUser).asRight
+      messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
-    assert(result.messages.contains("You have no access to post to this group."))
+    assert(result.messages.contains("Sender user does not exist."))
   }
 
   test("sending a message should update groups last message timestamp") {
     val messages = new MockPrivateMessageStore()
-    val sendingUser = UUID.randomUUID()
-    val receivingUser = UUID.randomUUID()
-    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, allowAllPermissions)
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, allowAllPermissions, existingUsers)
 
     val Right(result: SuccessResult) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
-      messageTarget = TargetUserId(receivingUser).asRight
+      messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
     val Right(result2: SuccessResult) = privateMessageSender.execute(
-      sendingUser = CurrentUserId(sendingUser),
+      sendingUser = CurrentUserId(sendingUser.userId),
       message = NewMessage("hello"),
-      messageTarget = TargetUserId(receivingUser).asRight
+      messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
     assert(result.messageGroup.lastMessage.isDefined)

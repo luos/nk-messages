@@ -23,7 +23,7 @@ class PrivateMessagesComponentTest extends FunSuite {
       ))
     )
 
-    val sendResult = pms.send.execute(
+    val sendResult = pms.privateMessageSender.execute(
       sendingUser = currentUserId,
       messageTarget = Right(targetUserId),
       NewMessage("Hi! This is my message")
@@ -56,7 +56,7 @@ class PrivateMessagesComponentTest extends FunSuite {
     )
 
     (1 to 95).map(n => {
-      val sendResult = pms.send.execute(
+      val sendResult = pms.privateMessageSender.execute(
         sendingUser = currentUserId,
         messageTarget = Right(targetUserId),
         NewMessage(s"message $n")
