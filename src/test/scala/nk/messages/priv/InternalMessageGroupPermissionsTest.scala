@@ -7,9 +7,9 @@ import nk.messages.priv.Groups.MessageGroup
 import nk.messages.CurrentUserId
 import org.scalatest.FunSuite
 import cats.implicits._
-import nk.messages.priv.permissions.{MessageGroupPermissions, MessageGroupPermissionsImplementation}
+import nk.messages.priv.permissions.{MessageGroupPermissions, InternalMessageGroupPermissions}
 
-class MessageGroupPermissionsImplementationTest extends FunSuite {
+class InternalMessageGroupPermissionsTest extends FunSuite {
 
   val notBlocked = new UserBlockList {
     override def isBlocked(user: CurrentUserId, byUser: UUID): IO[Boolean] = IO.pure(false)
@@ -24,7 +24,7 @@ class MessageGroupPermissionsImplementationTest extends FunSuite {
   }
 
   test("Given a user is a member of the group, can post") {
-    val permissions = new MessageGroupPermissionsImplementation(notBlocked)
+    val permissions = new InternalMessageGroupPermissions(notBlocked)
     val user = CurrentUserId(UUID.randomUUID())
     val targetUser = UUID.randomUUID()
     val canPost = permissions.canPostTo(
@@ -33,7 +33,7 @@ class MessageGroupPermissionsImplementationTest extends FunSuite {
   }
 
   test("Given a user is not a member of the group, can not post") {
-    val permissions = new MessageGroupPermissionsImplementation(notBlocked)
+    val permissions = new InternalMessageGroupPermissions(notBlocked)
     val user = CurrentUserId(UUID.randomUUID())
     val canPost = permissions.canPostTo(
       user, groupWithUsers(Seq(UUID.randomUUID(), UUID.randomUUID())))
@@ -41,7 +41,7 @@ class MessageGroupPermissionsImplementationTest extends FunSuite {
   }
 
   test("Given the sending user is blocked by the target user") {
-    val permissions = new MessageGroupPermissionsImplementation(blocked)
+    val permissions = new InternalMessageGroupPermissions(blocked)
     val user = CurrentUserId(UUID.randomUUID())
     val targetUser = UUID.randomUUID()
     val canPost = permissions.canPostTo(

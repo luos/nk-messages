@@ -6,6 +6,7 @@ import nk.messages.{CurrentUserId, PrivateMessagesComponent, TestUtils}
 import cats.effect.IO
 import nk.messages.priv.ReadConversation.Messages
 import nk.messages.priv.SendPrivateMessage.{NewMessage, TargetUserId}
+import nk.messages.priv.metadata.MockMetadataRenderer
 import nk.messages.priv.{Groups, PrivateMessageGroups, PrivateMessageStore, PrivateMessageUser, ReadConversation, SendPrivateMessage, UserBlockList}
 import org.scalatest.FunSuite
 
@@ -20,13 +21,14 @@ class PrivateMessagesComponentTest extends FunSuite {
       new InMemoryPrivateUserStorage(Seq(
         PrivateMessageUser(currentUserId.userId, "Cacao"),
         PrivateMessageUser(targetUserId.userId, "Grapefruit"),
-      ))
+      )),
+      new MockMetadataRenderer
     )
 
-    val sendResult = pms.privateMessageSender.execute(
+    val sendResult = pms.sendMessage.execute(
       sendingUser = currentUserId,
       messageTarget = Right(targetUserId),
-      NewMessage("Hi! This is my message")
+      NewMessage("Hi! This is my message", None)
     ).unsafeRunSync()
 
     assert(sendResult.isRight)
@@ -52,14 +54,15 @@ class PrivateMessagesComponentTest extends FunSuite {
       new InMemoryPrivateUserStorage(Seq(
         PrivateMessageUser(currentUserId.userId, "Cacao"),
         PrivateMessageUser(targetUserId.userId, "Grapefruit"),
-      ))
+      )),
+      new MockMetadataRenderer
     )
 
     (1 to 95).map(n => {
-      val sendResult = pms.privateMessageSender.execute(
+      val sendResult = pms.sendMessage.execute(
         sendingUser = currentUserId,
         messageTarget = Right(targetUserId),
-        NewMessage(s"message $n")
+        NewMessage(s"message $n", None)
       ).unsafeRunSync()
 
       assert(sendResult.isRight)

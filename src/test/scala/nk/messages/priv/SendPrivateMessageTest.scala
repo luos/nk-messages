@@ -8,6 +8,9 @@ import cats.implicits._
 import cats.effect.IO
 import nk.messages.priv.Groups.MessageGroup
 import nk.messages.priv.SendPrivateMessage.{ErrorResult, NewMessage, SuccessResult, TargetMessageGroup, TargetUserId}
+import nk.messages.priv.messages.MetadataRenderer
+import nk.messages.priv.messages.MetadataRenderer.Metadata
+import nk.messages.priv.metadata.MockMetadataRenderer
 import nk.messages.priv.permissions.MessageGroupPermissions
 import nk.messages.{CurrentUserId, TestUtils}
 import org.scalactic.source.Position
@@ -22,8 +25,13 @@ class SendPrivateMessageTest
   val receivingUser = createUser()
   var existingUsers: MockPrivateUserStorage = null
 
+  var metadataRenderer: MockMetadataRenderer = null
+
+  val noMeta = None
+
   before({
     existingUsers = new MockPrivateUserStorage(Seq(sendingUser, receivingUser))
+    metadataRenderer = new MockMetadataRenderer
   })
 
   val allowAllPermissions = new MessageGroupPermissions {
@@ -35,11 +43,11 @@ class SendPrivateMessageTest
   test("sending a message where there was none before") {
     val messages = new MockPrivateMessageStore()
     val messageGroups = new MockMessageGroups()
-    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions, existingUsers)
+    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions, existingUsers, metadataRenderer)
 
     val Right(result) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
     assert(result.success)
@@ -53,31 +61,29 @@ class SendPrivateMessageTest
   test("sending a message where there was some before") {
     val messages = new MockPrivateMessageStore()
     val targetGroupId = UUID.randomUUID()
-    val privateMessageSender = new SendPrivateMessage(
-      new PrivateMessageGroups {
-        override def find(messageGroupId: UUID): IO[Option[Groups.MessageGroup]] = {
-          IO.pure(Some(
-            MessageGroup(targetGroupId, Seq(sendingUser.userId, receivingUser.userId), None)
-          ))
-        }
-
-        override def create(users: Seq[UUID]): IO[Groups.MessageGroup] = {
-          throw new Exception("should not be called")
-        }
-
-        override def findForUsers(users: Seq[UUID]): IO[Option[MessageGroup]] = ???
-
-        override def findAllGroupsOfUser(user: UUID): IO[Seq[MessageGroup]] = ???
-
-        override def setLastMessage(messageGroup: MessageGroup, time: Instant) = {
-          IO.pure(messageGroup)
-        }
+    val privateMessageSender = new SendPrivateMessage(new PrivateMessageGroups {
+      override def find(messageGroupId: UUID): IO[Option[Groups.MessageGroup]] = {
+        IO.pure(Some(
+          MessageGroup(targetGroupId, Seq(sendingUser.userId, receivingUser.userId), None)
+        ))
       }
-      , messages, allowAllPermissions, existingUsers)
+
+      override def create(users: Seq[UUID]): IO[Groups.MessageGroup] = {
+        throw new Exception("should not be called")
+      }
+
+      override def findForUsers(users: Seq[UUID]): IO[Option[MessageGroup]] = ???
+
+      override def findAllGroupsOfUser(user: UUID): IO[Seq[MessageGroup]] = ???
+
+      override def setLastMessage(messageGroup: MessageGroup, time: Instant) = {
+        IO.pure(messageGroup)
+      }
+    }, messages, allowAllPermissions, existingUsers,metadataRenderer)
 
     val Right(result) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetMessageGroup(targetGroupId).asLeft
     ).unsafeRunSync()
     assert(result.success)
@@ -96,15 +102,11 @@ class SendPrivateMessageTest
     )
 
 
-    val privateMessageSender = new SendPrivateMessage(
-      messageGroups,
-      messages,
-      allowAllPermissions,
-      existingUsers)
+    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions, existingUsers, metadataRenderer)
 
     val Right(result) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("<script>hello</script><iframe>hello \n"),
+      message = NewMessage("<script>hello</script><iframe>hello \n", None),
       messageTarget = TargetMessageGroup(targetGroupId).asLeft
     ).unsafeRunSync()
     assert(result.success)
@@ -120,14 +122,11 @@ class SendPrivateMessageTest
     val messages = new MockPrivateMessageStore()
     val targetGroupId = UUID.randomUUID()
     val messageGroups = new MockMessageGroups()
-    val privateMessageSender = new SendPrivateMessage(messageGroups,
-      messages,
-      allowAllPermissions,
-      existingUsers)
+    val privateMessageSender = new SendPrivateMessage(messageGroups, messages, allowAllPermissions, existingUsers, metadataRenderer)
 
     val Left(result: ErrorResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetMessageGroup(targetGroupId).asLeft
     ).unsafeRunSync()
 
@@ -139,20 +138,16 @@ class SendPrivateMessageTest
 
   test("sending a message to a user which we already have a group with") {
     val messages = new MockPrivateMessageStore()
-    val privateMessageSender = new SendPrivateMessage(
-      new MockMessageGroups(),
-      messages,
-      allowAllPermissions,
-      existingUsers)
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, allowAllPermissions, existingUsers, metadataRenderer)
 
     val Right(result: SuccessResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
     val Right(result2: SuccessResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
@@ -167,11 +162,11 @@ class SendPrivateMessageTest
         IO.pure(p)
       }
     }
-    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, blockPostPermissions, existingUsers)
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, blockPostPermissions, existingUsers, metadataRenderer)
 
     val Left(result: ErrorResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
@@ -187,14 +182,11 @@ class SendPrivateMessageTest
         IO.pure(p)
       }
     }
-    val privateMessageSender = new SendPrivateMessage(
-      new MockMessageGroups(),
-      messages,
-      blockPostPermissions, existingUsers)
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, blockPostPermissions, existingUsers, metadataRenderer)
 
     val Left(result: ErrorResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser).asRight
     ).unsafeRunSync()
 
@@ -210,14 +202,11 @@ class SendPrivateMessageTest
         IO.pure(p)
       }
     }
-    val privateMessageSender = new SendPrivateMessage(
-      new MockMessageGroups(),
-      messages,
-      blockPostPermissions, existingUsers)
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, blockPostPermissions, existingUsers, metadataRenderer)
 
     val Left(result: ErrorResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
@@ -226,16 +215,16 @@ class SendPrivateMessageTest
 
   test("sending a message should update groups last message timestamp") {
     val messages = new MockPrivateMessageStore()
-    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, allowAllPermissions, existingUsers)
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, allowAllPermissions, existingUsers, metadataRenderer)
 
     val Right(result: SuccessResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
     val Right(result2: SuccessResult) = privateMessageSender.execute(
       sendingUser = CurrentUserId(sendingUser.userId),
-      message = NewMessage("hello"),
+      message = NewMessage("hello", noMeta),
       messageTarget = TargetUserId(receivingUser.userId).asRight
     ).unsafeRunSync()
 
@@ -245,6 +234,22 @@ class SendPrivateMessageTest
       a <- result.messageGroup.lastMessage
       b <- result2.messageGroup.lastMessage
     } yield a.isBefore(b)).get)
+  }
+
+  test("sending a message with metadata, should set metadata on the message") {
+    val messages = new MockPrivateMessageStore()
+    val metadata = Metadata("Important Link", Some("https://netkatalogus.hu"))
+    metadataRenderer.result = Some(metadata)
+
+    val privateMessageSender = new SendPrivateMessage(new MockMessageGroups(), messages, allowAllPermissions, existingUsers, metadataRenderer)
+    val Right(result: SuccessResult) = privateMessageSender.execute(
+      sendingUser = CurrentUserId(sendingUser.userId),
+      message = NewMessage("hello", Some(
+        Map("classifiedId" -> "abc", "title" -> "hello")
+      )),
+      messageTarget = TargetUserId(receivingUser.userId).asRight
+    ).unsafeRunSync()
+    assert(messages.messages.head._2.head.metadata.get == metadata)
   }
 
 }

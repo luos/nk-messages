@@ -35,7 +35,7 @@ class ReadConversationTest extends FunSuite {
     val messages = new MockPrivateMessageStore
     val userId = UUID.randomUUID()
     val createdAt = Instant.now()
-    messages.setMessagesForGroup(groupId, Seq(NewStoredMessage(userId, "this is a message", createdAt)))
+    messages.setMessagesForGroup(groupId, Seq(NewStoredMessage(userId, "this is a message", createdAt, None)))
 
     val rc = new ReadConversation(groups, messages, allowGroup)
     val result = rc.execute(
@@ -44,8 +44,8 @@ class ReadConversationTest extends FunSuite {
     ).unsafeRunSync()
 
     assert(result == Messages(Seq(
-            Message("this is a message", userId = userId, createdAt = createdAt)
-          ), 1, 1, 1))
+      Message("this is a message", userId = userId, createdAt = createdAt)
+    ), 1, 1, 1))
   }
 
   test("given a conversation id, returns messages from message store if multiple batches are available") {
@@ -58,7 +58,7 @@ class ReadConversationTest extends FunSuite {
     val createdAt = Instant.now()
 
     messages.setMessagesForGroup(groupId,
-      (1 to 100).map(n => NewStoredMessage(userId, s"this is a message $n", createdAt))
+      (1 to 100).map(n => NewStoredMessage(userId, s"this is a message $n", createdAt, None))
     )
 
     val rc = new ReadConversation(groups, messages, allowGroup)
@@ -90,7 +90,7 @@ class ReadConversationTest extends FunSuite {
     val createdAt = Instant.now()
 
     messages.setMessagesForGroup(groupId,
-      (1 to 100).map(n => NewStoredMessage(userId, s"this is a message $n", createdAt))
+      (1 to 100).map(n => NewStoredMessage(userId, s"this is a message $n", createdAt, None))
     )
 
     val rc = new ReadConversation(groups, messages, permissions)

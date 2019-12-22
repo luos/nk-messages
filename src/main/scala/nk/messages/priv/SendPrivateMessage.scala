@@ -10,6 +10,7 @@ import nk.messages.priv.Groups.MessageGroup
 import nk.messages.priv.PrivateMessageStore.NewStoredMessage
 import nk.messages.priv.SendPrivateMessage._
 import nk.messages.CurrentUserId
+import nk.messages.priv.messages.MetadataRenderer
 import nk.messages.priv.permissions.MessageGroupPermissions
 import nk.messages.priv.permissions.MessageGroupPermissions.Permission
 
@@ -19,7 +20,7 @@ object SendPrivateMessage {
 
   case class TargetUserId(userId: UUID)
 
-  case class NewMessage(message: String)
+  case class NewMessage(message: String, metadata: Option[Map[String, String]])
 
 
   case class SuccessResult(success: Boolean, messageGroup: MessageGroup)
@@ -32,8 +33,8 @@ object SendPrivateMessage {
 class SendPrivateMessage(privateMessageGroups: PrivateMessageGroups,
                          privateMessageStore: PrivateMessageStore,
                          messageGroupPermissions: MessageGroupPermissions,
-                         privateUserStorage: PrivateUserStorage
-                        ) {
+                         privateUserStorage: PrivateUserStorage,
+                         metadataRenderer: MetadataRenderer) {
 
   def execute(sendingUser: CurrentUserId,
               messageTarget: Either[TargetMessageGroup, TargetUserId],
@@ -54,7 +55,7 @@ class SendPrivateMessage(privateMessageGroups: PrivateMessageGroups,
               case MessageGroupPermissions.Allowed() => {
                 createMessage(sendingUser, g, message)
               }
-              case perm : Permission => {
+              case perm: Permission => {
                 IO.pure(Left(ErrorResult(
                   messages = Seq(
                     s"You have no access to post to this group. (${perm})"
@@ -118,8 +119,9 @@ class SendPrivateMessage(privateMessageGroups: PrivateMessageGroups,
   def createMessage(sendingUser: CurrentUserId, group: MessageGroup, message: NewMessage) = {
     val createdAt = Instant.now()
     val messageContent = Escaper.removeHtml(message.message)
-    privateMessageStore.insert(group, NewStoredMessage(sendingUser.userId, messageContent.text, createdAt))
     for {
+      metadata <- metadataRenderer.render(message.metadata)
+      _ <- IO.pure(privateMessageStore.insert(group, NewStoredMessage(sendingUser.userId, messageContent.text, createdAt, metadata)))
       g2 <- privateMessageGroups.setLastMessage(group, createdAt)
     } yield Right(SuccessResult(
       success = true,

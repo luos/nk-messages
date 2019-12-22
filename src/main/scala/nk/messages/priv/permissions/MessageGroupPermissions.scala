@@ -34,8 +34,11 @@ trait MessageGroupPermissions {
   }
 }
 
-class MessageGroupPermissionsImplementation(blockList: UserBlockList) extends MessageGroupPermissions {
-  override def canPostTo(sendingUser: CurrentUserId, messageGroup: MessageGroup): IO[MessageGroupPermissions.Permission] = {
+class InternalMessageGroupPermissions(blockList: UserBlockList)
+  extends MessageGroupPermissions {
+
+  override
+  def canPostTo(sendingUser: CurrentUserId, messageGroup: MessageGroup): IO[MessageGroupPermissions.Permission] = {
     val isUserInGroup = messageGroup.users.contains(sendingUser.userId)
     if (isUserInGroup) {
       val Seq(otherUser: UUID) = messageGroup.users.filter(_ != sendingUser.userId)
